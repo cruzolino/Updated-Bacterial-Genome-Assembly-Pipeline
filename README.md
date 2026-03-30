@@ -95,7 +95,7 @@ A robust, single-script pipeline for bacterial genome assembly from short reads 
 
 ```bash
 # Clone or download the script
-git clone https://github.com/your-org/bacterial-assembly-pipeline.git
+git clone https://github.com/cruzolino/Updated-Bacterial-Genome-Assembly-Pipeline/blob/main/bacterial_assembly_v4.sh
 cd bacterial-assembly-pipeline
 
 # Make executable
