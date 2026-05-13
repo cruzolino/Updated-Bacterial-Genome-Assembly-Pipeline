@@ -88,7 +88,7 @@ A streamlined bash pipeline for *de novo* bacterial genome assembly from Illumin
 
 ```bash
 # Clone or download the script
-wget https://your-repo/bacterial_assembly_v6.0.0.sh
+wget https://github.com/cruzolino/Updated-Bacterial-Genome-Assembly-Pipeline
 chmod +x bacterial_assembly_v6.0.0.sh
 
 # Recommended: create a dedicated conda environment
