@@ -1,6 +1,6 @@
-# Bacterial Genome Assembly Pipeline — v5.0.0
+# Bacterial Genome Assembly Pipeline v6.0.0
 
-A multi-mode bacterial genome assembly pipeline supporting **Illumina paired-end**, **Nanopore**, **Hybrid (Illumina + Nanopore)**, and **PacBio HiFi** sequencing data. The pipeline runs five sequential stages — QC, assembly, polishing, quality assessment, and annotation — with checkpoint-based resume logic, preflight tool validation, and structured output organisation.
+A streamlined bash pipeline for *de novo* bacterial genome assembly from Illumina paired-end, Nanopore, PacBio HiFi, or hybrid reads. Produces a polished, QC-evaluated assembly FASTA ready for downstream annotation and comparative genomics.
 
 ---
 
@@ -9,27 +9,27 @@ A multi-mode bacterial genome assembly pipeline supporting **Illumina paired-end
 - [Features](#features)
 - [Requirements](#requirements)
 - [Installation](#installation)
+- [Quick Start](#quick-start)
 - [Usage](#usage)
-- [Pipeline Stages](#pipeline-stages)
+- [Pipeline Overview](#pipeline-overview)
 - [Output Structure](#output-structure)
-- [Examples](#examples)
 - [Resume Mode](#resume-mode)
+- [Suggested Next Steps](#suggested-next-steps)
 - [Changelog](#changelog)
 
 ---
 
 ## Features
 
-- Four sequencing modes: Illumina PE, Nanopore, Hybrid, PacBio HiFi
-- Six assembler options: SPAdes, SKESA, Unicycler, Flye, Canu, Raven
-- Checkpoint/resume logic — interrupted runs can be restarted from the last completed stage
-- Preflight tool check — all required tools are validated at startup before any processing begins
-- Pilon polishing for Illumina and hybrid runs (long-read assemblers handle internal polishing)
-- Bakta annotation for all modes, with optional antiSMASH secondary metabolite detection
-- Genome completeness assessment via CheckM2 (or CheckM legacy fallback) and BUSCO
-- Plasmid detection via PlasmidFinder (optional, enabled by default)
-- Automatic Markdown summary report written to `05_reports/SUMMARY.md`
-- Colour-coded, timestamped logging with clear error messages
+- Four sequencing modes: **Illumina PE**, **Nanopore**, **PacBio HiFi**, **Hybrid**
+- Six assembler choices: SPAdes, SKESA, Unicycler, Flye, Canu, Raven
+- Parallel QC: FastQC and NanoPlot run concurrently with trimming/filtering steps
+- Automatic `pigz` detection for faster compression
+- Checkpoint-based **resume** (`-r`) — skip completed stages after interruption
+- Plasmid detection via PlasmidFinder (optional, on by default)
+- Genome completeness assessment via CheckM2/CheckM and BUSCO
+- Markdown summary report generated at completion
+- All missing tools reported at startup in a single error — no fix-one-run-find-next cycle
 
 ---
 
@@ -37,87 +37,96 @@ A multi-mode bacterial genome assembly pipeline supporting **Illumina paired-end
 
 ### Mandatory (all modes)
 
-| Tool | Purpose |
-|---|---|
-| `fastqc` | Raw and post-trim read QC (Illumina) |
-| `fastp` | Adapter trimming and read filtering (Illumina) |
-| `quast` | Assembly quality statistics |
+| Tool | Purpose | Install |
+|---|---|---|
+| [FastQC](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/) | Raw/trimmed read QC | `conda install -c bioconda fastqc` |
+| [fastp](https://github.com/OpenGFP/fastp) | Illumina adapter trimming | `conda install -c bioconda fastp` |
+| [QUAST](https://quast.sourceforge.net/) | Assembly quality metrics | `conda install -c bioconda quast` |
 
-### Illumina / Hybrid modes
+### Illumina / Hybrid
 
-| Tool | Purpose |
-|---|---|
-| `bowtie2` | Read mapping for Pilon polishing |
-| `samtools` | BAM sorting and indexing |
-| `pilon` | Illumina-based consensus polishing |
+| Tool | Purpose | Install |
+|---|---|---|
+| [Bowtie2](https://bowtie-bio.sourceforge.net/bowtie2/) | Read mapping for polishing | `conda install -c bioconda bowtie2` |
+| [SAMtools](https://www.htslib.org/) | BAM sorting and indexing | `conda install -c bioconda samtools` |
+| [Pilon](https://github.com/broadinstitute/pilon) | Illumina-based polishing | `conda install -c bioconda pilon` |
 
-### Long-read / Hybrid modes
+### Long-read / Hybrid
 
-| Tool | Purpose |
-|---|---|
-| `filtlong` | Long-read quality filtering |
-| `NanoPlot` *(optional)* | Long-read QC visualisation |
+| Tool | Purpose | Install |
+|---|---|---|
+| [Filtlong](https://github.com/rrwick/Filtlong) | Long-read quality filtering | `conda install -c bioconda filtlong` |
 
-### Assemblers (install the one(s) you need)
+### Assemblers (install only the one you need)
 
-| Tool | Modes |
-|---|---|
-| `spades.py` | Illumina, Hybrid |
-| `skesa` | Illumina |
-| `unicycler` | Illumina, Hybrid |
-| `flye` | Nanopore, PacBio HiFi |
-| `canu` | Nanopore, PacBio HiFi |
-| `raven` | Nanopore |
+| Tool | Modes | Install |
+|---|---|---|
+| [SPAdes](https://github.com/ablab/spades) | Illumina, Hybrid | `conda install -c bioconda spades` |
+| [SKESA](https://github.com/ncbi/SKESA) | Illumina | `conda install -c bioconda skesa` |
+| [Unicycler](https://github.com/rrwick/Unicycler) | Illumina, Hybrid | `conda install -c bioconda unicycler` |
+| [Flye](https://github.com/mikolmogorov/Flye) | Nanopore, HiFi | `conda install -c bioconda flye` |
+| [Canu](https://github.com/marbl/canu) | Nanopore, HiFi | `conda install -c bioconda canu` |
+| [Raven](https://github.com/lbcb-sci/raven) | Nanopore, HiFi | `conda install -c bioconda raven-assembler` |
 
-### Quality assessment (optional but recommended)
+### Optional (skipped gracefully if absent)
 
-| Tool | Purpose |
-|---|---|
-| `checkm2` | Genome completeness (preferred) |
-| `checkm` | Genome completeness (legacy fallback) |
-| `busco` | BUSCO completeness against `bacteria_odb10` |
-| `assembly-stats` | Summary N50/length statistics |
-| `multiqc` *(optional)* | Aggregate QC report |
-| `seqkit` *(optional)* | Contig length filtering (awk fallback if absent) |
-
-### Annotation (optional)
-
-| Tool | Purpose |
-|---|---|
-| `bakta` | Primary genome annotator — produces INSDC-ready GFF3, GBFF, FAA, FNA, TSV |
-| `antismash` *(optional)* | Secondary metabolite biosynthetic gene cluster detection |
-| `plasmidfinder.py` *(optional)* | Plasmid replicon typing |
-
-> **Bakta database:** Bakta requires a local sequence database. Download it with `bakta_db download` or specify a custom path with `-d`. The pipeline auto-detects the database if it has been set up via `bakta_db`.
+| Tool | Purpose | Install |
+|---|---|---|
+| [MultiQC](https://multiqc.info/) | Aggregated QC report | `conda install -c bioconda multiqc` |
+| [NanoPlot](https://github.com/wdecoster/NanoPlot) | Long-read QC plots | `conda install -c bioconda nanoplot` |
+| [seqkit](https://bioinf.shenwei.me/seqkit/) | Fast contig length filtering | `conda install -c bioconda seqkit` |
+| [assembly-stats](https://github.com/sanger-pathogens/assembly-stats) | N50/total length stats | `conda install -c bioconda assembly-stats` |
+| [CheckM2](https://github.com/chklovski/CheckM2) | Genome completeness (preferred) | `conda install -c bioconda checkm2` |
+| [CheckM](https://ecogenomics.github.io/CheckM/) | Genome completeness (legacy) | `conda install -c bioconda checkm` |
+| [BUSCO](https://busco.ezlab.org/) | Genome completeness (lineage) | `conda install -c bioconda busco` |
+| [PlasmidFinder](https://cge.food.dtu.dk/services/PlasmidFinder/) | Plasmid replicon detection | `conda install -c bioconda plasmidfinder` |
+| [pigz](https://zlib.net/pigz/) | Parallel gzip (faster compression) | `conda install pigz` |
 
 ---
 
 ## Installation
 
-No installation is required for the pipeline script itself. Clone or download the script and make it executable:
-
 ```bash
-chmod +x bacterial_assembly_v5.0.0.sh
+# Clone or download the script
+wget https://your-repo/bacterial_assembly_v6.0.0.sh
+chmod +x bacterial_assembly_v6.0.0.sh
+
+# Recommended: create a dedicated conda environment
+conda create -n assembly \
+    fastqc fastp quast bowtie2 samtools pilon \
+    filtlong spades unicycler flye \
+    multiqc nanoplot seqkit assembly-stats \
+    checkm2 busco plasmidfinder pigz
+conda activate assembly
 ```
 
-All dependencies must be available on your `PATH`. The recommended approach is to manage them in a conda environment:
+---
+
+## Quick Start
 
 ```bash
-conda create -n bacterial_assembly -c bioconda -c conda-forge \
-    fastqc fastp quast bowtie2 samtools pilon filtlong nanoplot \
-    spades unicycler flye canu raven checkm2 busco bakta seqkit \
-    assembly-stats multiqc plasmidfinder
-conda activate bacterial_assembly
-```
+# Illumina paired-end
+./bacterial_assembly_v6.0.0.sh -1 R1.fq.gz -2 R2.fq.gz -s Ecoli -t 16
 
-Install antiSMASH separately if needed, following the [antiSMASH installation guide](https://docs.antismash.secondarymetabolites.org/install/).
+# Nanopore only
+./bacterial_assembly_v6.0.0.sh -l ont.fq.gz -s Salmonella -a flye -g 4.8m -t 16
+
+# Hybrid (Illumina + Nanopore)
+./bacterial_assembly_v6.0.0.sh -1 R1.fq.gz -2 R2.fq.gz -l ont.fq.gz -s Klebsiella -a unicycler
+
+# PacBio HiFi
+./bacterial_assembly_v6.0.0.sh -l hifi.fq.gz -s Pseudomonas -a flye --hifi -g 6.5m
+
+# Resume an interrupted run
+./bacterial_assembly_v6.0.0.sh -1 R1.fq.gz -2 R2.fq.gz -s Ecoli -t 16 -r
+```
 
 ---
 
 ## Usage
 
 ```
-Usage:  bacterial_assembly_v5.0.0.sh [OPTIONS]
+Usage:  bacterial_assembly_v6.0.0.sh [OPTIONS]
 
 Input (at least one required):
   -1 FILE   Illumina forward reads (R1.fastq.gz)
@@ -131,240 +140,188 @@ Assembly:
 
 General:
   -o DIR    Output directory          [default: bacterial_assembly]
-  -t INT    Threads                   [default: auto-detected]
+  -t INT    Threads                   [default: auto-detect]
   -m STR    Memory limit              [default: 32G]
   -s STR    Sample name               [default: isolate]
   -g STR    Expected genome size      [default: 5m]
-  -d PATH   Bakta DB path             [default: auto-detect]
   -c INT    Min contig length (bp)    [default: 500]
   -P STR    PlasmidFinder DB          [default: enterobacteriaceae]
   -x        Skip plasmid detection
   -q        QC only (skip assembly)
   -r        Resume from last checkpoint
-  -h|--help Show this help
+  -h        Show help
 ```
 
-Genome size (`-g`) accepts a number followed by `m` (megabases) or `g` (gigabases), e.g. `5m`, `4.8m`, `0.5g`. This value is used for Filtlong coverage targeting and is passed to Flye/Canu when applicable.
+### Assembler selection guide
+
+| Input | Recommended assembler | Notes |
+|---|---|---|
+| Illumina PE only | `spades` | `--isolate` mode; best for single isolates |
+| Illumina PE only | `skesa` | Faster than SPAdes; fewer mis-assemblies on some datasets |
+| Illumina + Nanopore | `unicycler` | Closes chromosomal and plasmid gaps using long reads |
+| Nanopore (standard) | `flye` | Robust for R9/R10 chemistry; uses `--nano-hq` |
+| Nanopore (legacy R9.4) | `raven` | Lightweight alternative to Flye |
+| Nanopore (deep coverage) | `canu` | Higher accuracy at the cost of longer runtime |
+| PacBio HiFi | `flye --hifi` | `--pacbio-hifi` mode; produces near-perfect assemblies |
+
+### Genome size format
+
+Pass a number followed by `m` (megabases) or `g` (gigabases):
+
+```
+-g 5m      # 5 Mb  (typical E. coli)
+-g 4.8m    # 4.8 Mb
+-g 0.5g    # 500 Mb (unusual for bacteria; included for completeness)
+```
 
 ---
 
-## Pipeline Stages
+## Pipeline Overview
 
-### Stage 1/5 — Quality Control
+```
+Input reads
+    │
+    ▼
+[1/4] Quality Control
+    ├── Illumina: FastQC (raw, parallel) → fastp trimming → FastQC (trimmed) → MultiQC
+    └── Long-read: NanoPlot (parallel) → Filtlong (20× coverage target)
+    │
+    ▼
+[2/4] Assembly
+    ├── Illumina/Hybrid: SPAdes | SKESA | Unicycler
+    ├── Nanopore/HiFi:   Flye | Canu | Raven
+    └── Contig filtering (default: ≥ 500 bp)
+    │
+    ▼
+[3/4] Polishing
+    ├── Illumina/Hybrid: Bowtie2 mapping → Pilon SNP+indel correction
+    └── Long-read only:  skipped (Flye/Canu/Raven perform internal polishing)
+    │
+    ▼
+[4/4] Quality Assessment
+    ├── QUAST          — assembly statistics (N50, contig count, misassemblies)
+    ├── CheckM2/CheckM — genome completeness and contamination
+    ├── BUSCO          — lineage-specific gene completeness (bacteria_odb10)
+    └── PlasmidFinder  — plasmid replicon typing (disable with -x)
+    │
+    ▼
+Final Report (SUMMARY.md)
+```
 
-**Illumina and Hybrid:**
-1. FastQC on raw reads → `01_qc/`
-2. Adapter trimming and quality filtering with fastp (Phred ≥ 20, length ≥ 50 bp) → `01_qc/`
-3. FastQC on trimmed reads → `01_qc/post_trim/`
-4. MultiQC aggregate report (if available) → `05_reports/`
+### Key design decisions
 
-**Nanopore and Hybrid:**
-1. NanoPlot QC on raw long reads (if available) → `01_qc/nanoplot/`
-2. Filtlong filtering: minimum length 1,000 bp, minimum mean Q 7, target bases at 20× coverage → `01_qc/`
+**Parallel QC** — FastQC on raw reads and NanoPlot are launched in the background while `fastp`/`filtlong` run in the foreground. This saves 30–120 s on typical datasets with no additional resource contention.
 
----
+**No external long-read polishing** — Flye, Canu, and Raven perform iterative internal polishing. A separate Medaka pass is redundant and a common source of pipeline crashes.
 
-### Stage 2/5 — Assembly
+**Pilon memory guard** — the pipeline checks available RAM before running Pilon and warns if the `-m` limit exceeds free memory, rather than silently crashing mid-run.
 
-Assembler is selected with `-a`. Compatibility rules are enforced at startup:
-
-| Assembler | Compatible modes |
-|---|---|
-| `spades` | Illumina, Hybrid |
-| `skesa` | Illumina |
-| `unicycler` | Illumina, Hybrid |
-| `flye` | Nanopore, PacBio HiFi |
-| `canu` | Nanopore, PacBio HiFi |
-| `raven` | Nanopore |
-
-After assembly, contigs shorter than the minimum length (`-c`, default 500 bp) are filtered out using `seqkit seq --min-len` (or an `awk` fallback). The filtered assembly FASTA path is persisted to `logs/.assembly_path` for use by downstream stages and resume mode.
-
----
-
-### Stage 3/5 — Polishing
-
-**Illumina / Hybrid:** Pilon polishing using bowtie2-mapped reads.
-- Reads are mapped with `bowtie2 --very-sensitive-local`
-- BAM is sorted and indexed with samtools
-- Pilon runs with `--fix all` to correct SNPs, small indels, and local misassemblies
-- A RAM guard warns if the specified memory limit exceeds available system RAM
-
-**Nanopore / PacBio HiFi:** No external polishing is performed. Flye, Canu, and Raven each include multiple internal polishing rounds during assembly, making a separate polishing step unnecessary.
-
----
-
-### Stage 4/5 — Quality Assessment
-
-Runs in order; tools that are not installed are skipped with a warning rather than aborting the pipeline.
-
-| Tool | Output |
-|---|---|
-| QUAST | Assembly contiguity statistics → `05_reports/quast/` |
-| CheckM2 *(preferred)* | Completeness and contamination → `05_reports/checkm2/` |
-| CheckM *(legacy fallback)* | Completeness and contamination → `05_reports/checkm/` |
-| BUSCO | Completeness against `bacteria_odb10` → `05_reports/busco/` |
-| PlasmidFinder | Replicon typing → `05_reports/plasmidfinder/` (disable with `-x`) |
-
----
-
-### Stage 5/5 — Annotation
-
-**Bakta** is the sole annotator. It produces INSDC-ready outputs suitable for direct NCBI/ENA submission.
-
-| Output file | Description |
-|---|---|
-| `*.gff3` | Genome annotation in GFF3 format |
-| `*.gbff` | GenBank flat file |
-| `*.faa` | Annotated protein sequences |
-| `*.fna` | Annotated nucleotide sequences |
-| `*.tsv` | Tabular summary of all features |
-
-If Bakta is not found in `PATH`, the stage issues a warning and continues. If Bakta fails (e.g. missing or misconfigured database), a warning is logged and the pipeline continues to report generation — it does not abort.
-
-**antiSMASH** runs after Bakta if available, using `prodigal` for gene finding (`--minimal` mode). Results are written to `04_annotation/antismash/`.
-
-A final Markdown report is written to `05_reports/SUMMARY.md` with assembly statistics, input file paths, and suggested next steps.
+**Annotation is out of scope** — keeping assembly and annotation separate allows each step to be run, updated, or repeated independently. See [Suggested Next Steps](#suggested-next-steps) for recommended tools.
 
 ---
 
 ## Output Structure
 
 ```
-<outdir>/
-├── 00_raw_data/            # Symlinks to input read files (no copy)
+bacterial_assembly/
+├── 00_raw_data/                      # Symlinks to input reads (no copy)
 ├── 01_qc/
-│   ├── post_trim/          # Post-trim FastQC reports
-│   ├── nanoplot/           # NanoPlot long-read QC (if applicable)
-│   ├── <sample>_R1.trimmed.fastq.gz
-│   ├── <sample>_R2.trimmed.fastq.gz
-│   ├── <sample>_fastp.html
-│   └── <sample>_fastp.json
+│   ├── {sample}_R1.trimmed.fastq.gz
+│   ├── {sample}_R2.trimmed.fastq.gz
+│   ├── {sample}_filtered.fastq.gz   # Long-read only
+│   ├── {sample}_fastp.html
+│   ├── nanoplot/                     # Long-read only
+│   └── post_trim/
 ├── 02_assembly/
-│   └── <assembler>/        # Raw assembler output
+│   └── {assembler}/
+│       ├── contigs.fasta             # Raw assembler output
+│       └── contigs_filtered.fasta    # Length-filtered final assembly
 ├── 03_polishing/
-│   ├── <sample>_pilon.fasta   # Pilon-polished assembly (Illumina/hybrid)
-│   └── mapped.bam             # Bowtie2 alignment used for polishing
-├── 04_annotation/
-│   ├── bakta/              # Bakta outputs (GFF3, GBFF, FAA, FNA, TSV)
-│   └── antismash/          # antiSMASH BGC predictions (if available)
+│   ├── {sample}_pilon.fasta          # Illumina/hybrid only
+│   ├── mapped.bam
+│   └── {sample}_pilon.vcf
 ├── 05_reports/
-│   ├── quast/              # QUAST assembly statistics
-│   ├── checkm2/            # CheckM2 completeness report
-│   ├── busco/              # BUSCO completeness report
-│   ├── plasmidfinder/      # PlasmidFinder replicon results
-│   ├── <sample>_multiqc/   # MultiQC aggregate report (if available)
-│   └── SUMMARY.md          # Final pipeline summary report
+│   ├── SUMMARY.md                    # Human-readable pipeline report
+│   ├── quast/
+│   ├── checkm/ or checkm2/
+│   ├── busco/
+│   └── plasmidfinder/
 └── logs/
+    ├── .assembly_path                # Used by resume logic
+    ├── .done_qc                      # Stage sentinel files
+    ├── .done_assembly
+    ├── .done_polishing
+    ├── .done_qa
+    ├── fastp.log
     ├── fastqc_raw.log
     ├── fastqc_post.log
-    ├── fastp.log
-    ├── filtlong.log
-    ├── <assembler>.log
+    ├── {assembler}.log
     ├── bowtie2.log
     ├── pilon.log
-    ├── quast.log
-    ├── checkm2.log
-    ├── busco.log
-    ├── bakta.log
-    ├── antismash.log
-    ├── .assembly_path      # Persisted assembly FASTA path for resume
-    └── .done_<stage>       # Checkpoint sentinel files for resume mode
+    └── quast.log
 ```
 
----
-
-## Examples
-
-**Illumina paired-end (default SPAdes assembler):**
-```bash
-./bacterial_assembly_v5.0.0.sh \
-    -1 sample_R1.fq.gz -2 sample_R2.fq.gz \
-    -s Ecoli -t 16 -m 32G -o results/ecoli
-```
-
-**Nanopore with Flye:**
-```bash
-./bacterial_assembly_v5.0.0.sh \
-    -l ont_reads.fq.gz \
-    -s Salmonella -a flye -g 4.8m -t 16 -o results/salmonella
-```
-
-**Hybrid assembly with Unicycler:**
-```bash
-./bacterial_assembly_v5.0.0.sh \
-    -1 R1.fq.gz -2 R2.fq.gz -l ont.fq.gz \
-    -s Klebsiella -a unicycler -t 24 -o results/klebsiella
-```
-
-**PacBio HiFi with Flye:**
-```bash
-./bacterial_assembly_v5.0.0.sh \
-    -l hifi_reads.fastq.gz --hifi \
-    -s Pseudomonas -a flye -g 6.5m -t 16 -o results/pseudomonas
-```
-
-**QC only (skip assembly and downstream steps):**
-```bash
-./bacterial_assembly_v5.0.0.sh \
-    -1 R1.fq.gz -2 R2.fq.gz -s Ecoli -q
-```
-
-**Custom Bakta database and SKESA assembler:**
-```bash
-./bacterial_assembly_v5.0.0.sh \
-    -1 R1.fq.gz -2 R2.fq.gz \
-    -s Staphylococcus -a skesa -d /db/bakta/db -t 8
-```
-
-**Disable plasmid detection:**
-```bash
-./bacterial_assembly_v5.0.0.sh \
-    -1 R1.fq.gz -2 R2.fq.gz -s Ecoli -x
-```
+The **final assembly FASTA** path is printed at completion and recorded in `05_reports/SUMMARY.md`.
 
 ---
 
 ## Resume Mode
 
-Each stage writes a hidden sentinel file (`logs/.done_<stage>`) upon successful completion. If the pipeline is interrupted (e.g. due to a system timeout or resource limit), it can be restarted from the last completed stage by passing the `-r` flag along with the original arguments:
+If the pipeline is interrupted (node failure, timeout, manual kill), re-run the exact same command with `-r` appended:
 
 ```bash
-# Original run (was interrupted during polishing)
-./bacterial_assembly_v5.0.0.sh -1 R1.fq.gz -2 R2.fq.gz -s Ecoli -t 16
+# Original command
+./bacterial_assembly_v6.0.0.sh -1 R1.fq.gz -2 R2.fq.gz -s Ecoli -t 16
 
-# Resume from where it stopped
-./bacterial_assembly_v5.0.0.sh -1 R1.fq.gz -2 R2.fq.gz -s Ecoli -t 16 -r
+# Resume after interruption
+./bacterial_assembly_v6.0.0.sh -1 R1.fq.gz -2 R2.fq.gz -s Ecoli -t 16 -r
 ```
 
-Stages already marked as done are skipped entirely. To force a stage to re-run, remove the corresponding `.done_<stage>` sentinel file from `logs/` before resuming, or run without `-r`.
+Each stage writes a sentinel file (e.g. `logs/.done_assembly`) on successful completion. With `-r`, any stage whose sentinel exists is skipped entirely. To force a specific stage to re-run, delete its sentinel then resume:
+
+```bash
+# Force re-assembly only, keep QC results
+rm bacterial_assembly/logs/.done_assembly
+./bacterial_assembly_v6.0.0.sh -1 R1.fq.gz -2 R2.fq.gz -s Ecoli -t 16 -r
+```
+
+---
+
+## Suggested Next Steps
+
+After the pipeline completes, the final polished assembly FASTA is ready for:
+
+| Task | Tool |
+|---|---|
+| Gene annotation | [Bakta](https://github.com/oschwengers/bakta) (INSDC-ready GFF3/GBFF) |
+| AMR gene detection | [AMRFinderPlus](https://github.com/ncbi/amr) or [ResFinder](https://cge.food.dtu.dk/services/ResFinder/) |
+| MLST typing | [mlst](https://github.com/tseemann/mlst) (Torsten Seemann) |
+| NCBI submission | Bakta outputs + `table2asn` |
+| Phylogenetics | [IQ-TREE2](http://www.iqtree.org/) or [FastTree](http://www.microbesonline.org/fasttree/) |
+| Pan-genome | [Panaroo](https://github.com/gtonkinhill/panaroo) (preferred) or [Roary](https://sanger-pathogens.github.io/Roary/) |
+| Secondary metabolites | [antiSMASH](https://antismash.secondarymetabolites.org/) |
 
 ---
 
 ## Changelog
 
+### v6.0.0
+- **Annotation removed** from pipeline scope; run Bakta/PGAP separately on the final FASTA
+- **Resume fix**: `TRIMMED_R1/R2` and `FILTERED_LONG` now derived via `_set_derived_paths()` — resume past QC no longer fails with undefined variable errors
+- **Parallel QC**: FastQC (raw) runs concurrently with `fastp`; NanoPlot runs concurrently with `filtlong`
+- **pigz support**: parallel gzip used automatically when `pigz` is installed
+- **Step counter**: updated to `[1/4]`–`[4/4]` reflecting four compute stages
+- **multiqc**: `--no-megaqc-update` added to suppress phone-home on air-gapped clusters
+- **assembly-stats parsing**: awk pattern made robust across output format variants
+- Redundant `ASSEMBLY` path override removed from polishing resume block
+- `-d` / `BAKTA_DB` option and annotation directory scaffold removed
+
 ### v5.0.0
-- **Medaka removed.** External Medaka polishing for Nanopore runs has been removed. Flye, Raven, and Canu perform multiple internal polishing iterations during assembly, making a separate Medaka step redundant. Pilon polishing for Illumina and hybrid runs is unchanged.
-- **Prokka removed.** Prokka has been removed as an annotator due to silent failures and environment conflicts. Bakta is now the sole annotator, providing comprehensive INSDC-ready outputs (GFF3, GBFF, FAA, FNA, TSV).
-- `-M` flag (Medaka model) removed from CLI.
-- `04_annotation/prokka/` removed from directory scaffold.
-- `medaka_consensus` removed from preflight tool checks.
-- Step counter updated from 6 to 5 throughout all log messages.
-- Summary report updated: annotation output path now points specifically to `bakta/`; NCBI submission note updated to reference `table2asn` with Bakta outputs.
-
-### v4.0.0
-- Resume logic via step-sentinel files
-- Preflight tool check reports all missing tools at once before any processing
-- `assembly-stats` output cached to avoid repeated subprocess calls
-- `awk` contig-filter bug fixed (final record was previously dropped)
-- `seqkit` is now the primary contig-filter path; `awk` is the fallback
-- `fastqc_raw.log` renamed to `fastqc_post.log` (was overwriting the raw log)
-- Pilon: RAM guard added; warns when heap exceeds available system RAM
-- Bakta DB auto-detection fixed (`bakta_db list` output format)
-- Strict quoting around all variable expansions
-- `GENOME_SIZE` validated as `<number>[m|g]` before numeric arithmetic
-- ERR trap reset before clean exit so it does not fire on intentional exits
-- `log()` / `ok()` write to stdout; `warn()` / `err()` write to stderr
-- PlasmidFinder database flag made configurable (`-P`)
-- `--help` added as an alias for `-h`
-- `-r` flag added to enable resume mode
-
+- Medaka polishing removed (Flye/Raven/Canu handle internal consensus)
+- Prokka replaced by Bakta for annotation
+- Step counter reduced from 6 to 5
+- `awk` used for float math in coverage calculation (replaces `bc`)
+- `gzip -1` used for filtlong output pipe (speed over compression ratio)
+- Awk contig-filtering bug fixed (final record previously dropped)
+- Post-trim FastQC log separated from raw FastQC log
+- `seqkit` used as preferred contig length filter with awk fallback
