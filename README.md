@@ -1,4 +1,4 @@
-# Bacterial Genome Assembly Pipeline v6.0.0
+# TakiLine - Bacterial Genome Assembly Pipeline v6.0.0
 
 A streamlined bash pipeline for *de novo* bacterial genome assembly from Illumina paired-end, Nanopore, PacBio HiFi, or hybrid reads. Produces a polished, QC-evaluated assembly FASTA ready for downstream annotation and comparative genomics.
 
